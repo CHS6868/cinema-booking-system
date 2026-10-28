@@ -1,12 +1,16 @@
 // Establish "Express Application"
 // Create an instance of Application
-
 const express = require("express");
 const db = require("./database/db");
 
+const { randomBytes, scrypt } = require("node:crypto");
+const { promisify } = require("node:util");
+
+const scryptAsync = promisify(scrypt);
+
 const app = express();
 const PORT = 3000;
-
+console.log("=== PHASE 5 BACKEND LOADED ===");
 
 function getLocalNow() {
   const now = new Date();
@@ -25,6 +29,180 @@ function getLocalNow() {
 }
 
 app.use(express.json());
+
+app.get("/api/test-phase5", (req, res) => {
+  res.json({
+    message: "Phase 5 Backend is running!"
+  });
+});
+
+// Registration endpoint
+
+app.post("/api/auth/register", async (req, res) => {
+  try {
+    const { name, email, password } = req.body || {};
+
+    // 1. Validate email
+    if (
+      typeof email !== "string" ||
+      email.length > 254 ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+    ) {
+      return res.status(400).json({
+        message: "Invalid email address"
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // 2. Validate password
+    if (
+      typeof password !== "string" ||
+      password.length < 12 ||
+      password.length > 128
+    ) {
+      return res.status(400).json({
+        message: "Password must be 12-128 characters"
+      });
+    }
+
+    // 3. Check users table structure
+    const columns = db.prepare(
+      "PRAGMA table_info(users)"
+    ).all();
+
+    const columnNames = new Set(
+      columns.map(column => column.name)
+    );
+
+    if (
+      !columnNames.has("email") ||
+      !columnNames.has("password_hash")
+    ) {
+      throw new Error(
+        "Users table requires email and password_hash columns"
+      );
+    }
+
+    // Support common profile column names
+    const profileColumn = columnNames.has("name")
+      ? "name"
+      : columnNames.has("username")
+        ? "username"
+        : null;
+
+    let cleanName = null;
+
+    if (profileColumn) {
+      if (
+        typeof name !== "string" ||
+        name.trim().length < 1 ||
+        name.trim().length > 60
+      ) {
+        return res.status(400).json({
+          message: "Name must be 1-60 characters"
+        });
+      }
+
+      cleanName = name.trim();
+    }
+
+    // 4. Check whether email already exists
+    const existingUser = db.prepare(`
+      SELECT id
+      FROM users
+      WHERE LOWER(email) = ?
+    `).get(normalizedEmail);
+
+    if (existingUser) {
+      return res.status(409).json({
+        message: "Email already registered"
+      });
+    }
+
+    // 5. Generate unique password salt
+    const salt = randomBytes(16).toString("hex");
+
+    // 6. Hash password securely
+    const N = 131072;
+    const r = 8;
+    const p = 1;
+
+    const derivedKey = await scryptAsync(
+      password,
+      Buffer.from(salt, "hex"),
+      64,
+      {
+        N,
+        r,
+        p,
+        maxmem: 256 * 1024 * 1024
+      }
+    );
+
+    // Save algorithm, parameters, salt and hash
+    const passwordHash = [
+      "scrypt",
+      N,
+      r,
+      p,
+      salt,
+      derivedKey.toString("hex")
+    ].join("$");
+
+    // 7. Insert user into SQLite
+    let result;
+
+    if (profileColumn) {
+      // profileColumn is one of two fixed trusted names
+      const insertUser = db.prepare(`
+        INSERT INTO users
+          (${profileColumn}, email, password_hash)
+        VALUES (?, ?, ?)
+      `);
+
+      result = insertUser.run(
+        cleanName,
+        normalizedEmail,
+        passwordHash
+      );
+    } else {
+      const insertUser = db.prepare(`
+        INSERT INTO users
+          (email, password_hash)
+        VALUES (?, ?)
+      `);
+
+      result = insertUser.run(
+        normalizedEmail,
+        passwordHash
+      );
+    }
+
+    // 8. Return success without revealing password
+    return res.status(201).json({
+      message: "Registration successful",
+      user: {
+        id: Number(result.lastInsertRowid),
+        name: cleanName,
+        email: normalizedEmail
+      }
+    });
+
+  } catch (error) {
+    if (/UNIQUE constraint failed/i.test(error.message)) {
+      return res.status(409).json({
+        message: "Email already registered"
+      });
+    }
+
+    console.error("Registration error:", error);
+
+    return res.status(500).json({
+      message: "Unable to register user"
+    });
+  }
+});
 
 // 1. Movie data
 const movies = [
