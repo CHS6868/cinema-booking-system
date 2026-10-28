@@ -1,6 +1,6 @@
-
 <script setup>
 import { RouterView } from "vue-router";
+import AuthNav from "./components/AuthNav.vue";
 </script>
 
 <template>
@@ -10,6 +10,8 @@ import { RouterView } from "vue-router";
     </header>
 
     <main>
+      <AuthNav />
+      
       <RouterView />
     </main>
   </div>

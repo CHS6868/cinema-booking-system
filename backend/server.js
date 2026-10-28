@@ -3,6 +3,15 @@
 const express = require("express");
 const db = require("./database/db");
 
+
+const { verifyPassword } = require("./auth/password");
+
+const {
+  createSession,
+  requireAuth,
+  destroySession
+} = require("./auth/session");
+
 const { randomBytes, scrypt } = require("node:crypto");
 const { promisify } = require("node:util");
 
@@ -30,6 +39,12 @@ function getLocalNow() {
 
 app.use(express.json());
 
+app.get("/api/auth/me", requireAuth, (req, res) => {
+  return res.status(200).json({
+    user: req.user
+  });
+});
+
 app.get("/api/test-phase5", (req, res) => {
   res.json({
     message: "Phase 5 Backend is running!"
@@ -37,7 +52,6 @@ app.get("/api/test-phase5", (req, res) => {
 });
 
 // Registration endpoint
-
 app.post("/api/auth/register", async (req, res) => {
   try {
     const { name, email, password } = req.body || {};
@@ -200,6 +214,86 @@ app.post("/api/auth/register", async (req, res) => {
 
     return res.status(500).json({
       message: "Unable to register user"
+    });
+  }
+});
+
+
+// POST /api/auth/login
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+
+    if (
+      typeof email !== "string" ||
+      typeof password !== "string" ||
+      email.length > 254 ||
+      password.length === 0 ||
+      password.length > 128
+    ) {
+      return res.status(400).json({
+        message: "Invalid login request"
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const user = db.prepare(`
+      SELECT id, email, password_hash
+      FROM users
+      WHERE LOWER(email) = ?
+    `).get(normalizedEmail);
+
+    if (!user) {
+      return res.status(401).json({
+        message: "Invalid email or password"
+      });
+    }
+
+    const validPassword = await verifyPassword(
+      password,
+      user.password_hash
+    );
+
+    if (!validPassword) {
+      return res.status(401).json({
+        message: "Invalid email or password"
+      });
+    }
+
+    createSession(res, user.id);
+
+    return res.status(200).json({
+      message: "Login successful",
+      user: {
+        id: user.id,
+        email: user.email
+      }
+    });
+
+  } catch (error) {
+    console.error("Login error:", error);
+
+    return res.status(500).json({
+      message: "Unable to log in"
+    });
+  }
+});
+
+// POST /api/auth/logout
+app.post("/api/auth/logout", (req, res) => {
+  try {
+    destroySession(req, res);
+
+    return res.status(200).json({
+      message: "Logged out successfully"
+    });
+
+  } catch (error) {
+    console.error("Logout error:", error);
+
+    return res.status(500).json({
+      message: "Unable to log out"
     });
   }
 });
@@ -528,7 +622,7 @@ app.get("/api/showtimes/:id/seats", (req, res) => {
 });
 
 // POST a demo booking
-app.post("/api/bookings", (req, res) => {
+app.post("/api/bookings", requireAuth, (req, res) => {
   const { showtimeId, seatIds } = req.body || {};
 
   // 1. Validate request data
@@ -636,11 +730,15 @@ app.post("/api/bookings", (req, res) => {
 
     // 7. Create booking record
     // user_id is NULL until Phase 5 authentication
+
     const bookingResult = db.prepare(`
       INSERT INTO bookings
-      (user_id, showtime_id, status)
-      VALUES (NULL, ?, 'CONFIRMED')
-    `).run(showtimeId);
+        (user_id, showtime_id, status)
+      VALUES (?, ?, 'CONFIRMED')
+    `).run(
+      req.user.id,
+      showtimeId
+    );
 
     const bookingId = Number(bookingResult.lastInsertRowid);
 
@@ -711,6 +809,84 @@ app.post("/api/bookings", (req, res) => {
   }
 });
 
+
+// GET /api/my-bookings
+// Return bookings belonging to the logged-in user
+app.get("/api/my-bookings", requireAuth, (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    console.log("Loading bookings for user:", userId);
+
+    const bookings = db.prepare(`
+      SELECT
+        b.id AS bookingId,
+        b.status,
+        b.created_at AS createdAt,
+        m.title AS movieTitle,
+        s.date,
+        s.time,
+        h.name AS hall,
+
+        GROUP_CONCAT(
+          se.seat_label, ', '
+        ) AS seats,
+
+        ROUND(
+          COUNT(bs.id) * s.price_cents / 100.0,
+          2
+        ) AS totalPrice
+
+      FROM bookings AS b
+
+      JOIN showtimes AS s
+        ON b.showtime_id = s.id
+
+      JOIN movies AS m
+        ON s.movie_id = m.id
+
+      JOIN halls AS h
+        ON s.hall_id = h.id
+
+      LEFT JOIN booking_seats AS bs
+        ON bs.booking_id = b.id
+        AND bs.status = 'CONFIRMED'
+
+      LEFT JOIN seats AS se
+        ON bs.seat_id = se.id
+
+      WHERE b.user_id = ?
+
+      GROUP BY
+        b.id,
+        b.status,
+        b.created_at,
+        m.title,
+        s.date,
+        s.time,
+        h.name,
+        s.price_cents
+
+      ORDER BY b.id DESC
+    `).all(userId);
+
+    return res.status(200).json({
+      bookings
+    });
+
+  } catch (error) {
+    console.error("My Bookings API error:", error);
+
+    return res.status(500).json({
+      message: "Unable to load bookings"
+    });
+  }
+});
+
+
 app.listen(PORT, () => {
+  console.log("=== PHASE 5 MY BOOKINGS SERVER ===");
+  console.log("Running file:", __filename);
+  console.log("Process ID:", process.pid);
   console.log(`Backend running at http://localhost:${PORT}`);
 });
