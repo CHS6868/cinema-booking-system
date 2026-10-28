@@ -18,3 +18,19 @@ Thumbs.db
 
 # VS Code local settings
 .vscode/
+
+# Local SQLite database files
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Node.js dependencies
+node_modules/
+
+# Environment variables
+.env
+.env.*
+
+# Build output
+dist/
