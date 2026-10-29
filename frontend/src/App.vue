@@ -1,28 +1,12 @@
 <script setup>
 import { RouterView } from "vue-router";
-import AuthNav from "./components/AuthNav.vue";
+import Navbar from "./components/Navbar.vue";
 </script>
 
 <template>
-  <div class="app">
-    <header class="header">
-      <h1>🎬 Cinema Booking System</h1>
-    </header>
-
-    <main>
-      <AuthNav />
-      
-      <RouterView />
-    </main>
+  <div class="app-shell">
+    <Navbar />
+    <main id="main-content" class="main-content"><RouterView /></main>
+    <footer class="site-footer">Cinema Booking System · Learning project</footer>
   </div>
 </template>
-
-<style scoped>
-.header {
-  background-color: #1e293b;
-  color: white;
-  padding: 20px;
-  text-align: center;
-}
-</style>
-

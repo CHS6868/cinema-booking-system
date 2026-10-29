@@ -1,178 +1,70 @@
-
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, watch } from "vue";
 import { useRoute, RouterLink } from "vue-router";
-
+import ShowtimeCard from "../components/ShowtimeCard.vue";
 const route = useRoute();
-
 const movie = ref(null);
 const showtimes = ref([]);
 const selectedDate = ref("");
 const loading = ref(true);
 const error = ref("");
-
-// Get the available dates from showtimes
-const availableDates = computed(() => {
-  return [...new Set(showtimes.value.map(s => s.date))].sort();
-});
-
-// Filter showtimes based on the selected date
-const filteredShowtimes = computed(() => {
-  return showtimes.value
-    .filter(s => s.date === selectedDate.value)
-    .sort((a, b) => a.time.localeCompare(b.time));
-});
-
+const availableDates = computed(() => [...new Set(showtimes.value.map(s => s.date))].sort());
+const filteredShowtimes = computed(() => showtimes.value
+  .filter(s => s.date === selectedDate.value)
+  .sort((a, b) => a.time.localeCompare(b.time)));
 async function loadMovieDetails() {
+  loading.value = true; error.value = ""; movie.value = null; showtimes.value = [];
   try {
-    const movieId = route.params.id;
-
-    const [movieResponse, showtimeResponse] = await Promise.all([
-      fetch(`/api/movies/${movieId}`),
-      fetch(`/api/movies/${movieId}/showtimes`)
-    ]);
-
-    if (!movieResponse.ok || !showtimeResponse.ok) {
-      throw new Error("Failed to load movie details");
-    }
-
-    movie.value = await movieResponse.json();
-    showtimes.value = await showtimeResponse.json();
-
+    const id = route.params.id;
+    const [m, s] = await Promise.all([fetch(`/api/movies/${id}`), fetch(`/api/movies/${id}/showtimes`)]);
+    if (!m.ok || !s.ok) throw new Error("Failed to load movie details");
+    movie.value = await m.json();
+    showtimes.value = await s.json();
     selectedDate.value = availableDates.value[0] || "";
-  } catch (err) {
-    error.value = "Unable to load movie details.";
-    console.error(err);
-  } finally {
-    loading.value = false;
-  }
+  } catch (err) { error.value = err.message || "Unable to load movie details"; }
+  finally { loading.value = false; }
 }
-
-onMounted(loadMovieDetails);
+watch(() => route.params.id, loadMovieDetails, { immediate: true });
 </script>
-
 <template>
   <section class="page">
-    <RouterLink to="/" class="back">← Back to Movies</RouterLink>
-
-    <p v-if="loading">Loading movie details...</p>
-    <p v-else-if="error">{{ error }}</p>
-
-    <div v-else-if="movie">
-      <div class="movie-info">
-        <div class="poster">🎬</div>
-
-        <div>
+    <RouterLink to="/" class="back-link">← Back to movies</RouterLink>
+    <p v-if="loading" class="notice" role="status">Loading movie details…</p>
+    <div v-else-if="error" class="notice error" role="alert">{{ error }} <button type="button" @click="loadMovieDetails">Try again</button></div>
+    <template v-else-if="movie">
+      <div class="movie-heading card">
+        <div class="poster" aria-hidden="true">🎞️</div>
+        <div class="movie-meta">
+          <p class="eyebrow">NOW SHOWING</p>
           <h1>{{ movie.title }}</h1>
-          <p>Genre: {{ movie.genre }}</p>
-          <p>Duration: {{ movie.duration }} minutes</p>
-          <p>Total showtimes: {{ showtimes.length }}</p>
+          <p class="muted">{{ movie.genre }} · {{ movie.duration }} minutes</p>
+          <p>{{ showtimes.length }} available showtimes</p>
         </div>
       </div>
-
-      <h2>Select Date</h2>
-
-      <p v-if="availableDates.length === 0">
-        No showtimes available.
-      </p>
-
-      <div class="dates">
-        <button
-          v-for="date in availableDates"
-          :key="date"
-          :class="{ active: selectedDate === date }"
-          @click="selectedDate = date"
-        >
-          {{ date }}
-        </button>
-      </div>
-
-      <h2 v-if="selectedDate">Available Showtimes</h2>
-
-      <div class="showtimes">
-        <RouterLink
-          v-for="show in filteredShowtimes"
-          :key="show.id"
-          :to="{ name: 'seats', params: { id: show.id } }"
-          class="showtime-card"
-        >
-          <strong>{{ show.time }}</strong>
-          <span>{{ show.hall }}</span>
-          <span>RM {{ show.price.toFixed(2) }}</span>
-          <span class="select">Select Seats →</span>
-        </RouterLink>
-      </div>
-    </div>
+      <section class="section-space" aria-labelledby="date-title">
+        <h2 id="date-title">1. Choose a date</h2>
+        <p v-if="!availableDates.length" class="notice">No upcoming showtimes.</p>
+        <div v-else class="date-row" role="group" aria-label="Select showtime date">
+          <button v-for="date in availableDates" :key="date" type="button" class="date-button" :class="{ active: selectedDate === date }" :aria-pressed="selectedDate === date" @click="selectedDate = date">{{ date }}</button>
+        </div>
+      </section>
+      <section v-if="selectedDate" aria-labelledby="showtimes-title">
+        <h2 id="showtimes-title">2. Choose a showtime</h2>
+        <div class="showtime-grid"><ShowtimeCard v-for="show in filteredShowtimes" :key="show.id" :show="show" /></div>
+      </section>
+    </template>
   </section>
 </template>
-
 <style scoped>
-.page {
-  max-width: 1000px;
-  margin: 40px auto;
-  padding: 20px;
-}
-
-.back {
-  color: #2563eb;
-  text-decoration: none;
-}
-
-.movie-info {
-  display: flex;
-  gap: 30px;
-  margin: 30px 0;
-}
-
-.poster {
-  width: 180px;
-  min-height: 240px;
-  display: grid;
-  place-items: center;
-  background: #e2e8f0;
-  border-radius: 12px;
-  font-size: 60px;
-}
-
-.dates, .showtimes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 15px;
-  margin: 20px 0 35px;
-}
-
-.dates button {
-  padding: 12px 20px;
-  border: 1px solid #cbd5e1;
-  background: white;
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-.dates button.active {
-  color: white;
-  background: #1e293b;
-}
-
-.showtime-card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 150px;
-  padding: 20px;
-  background: white;
-  color: #1e293b;
-  border: 1px solid #cbd5e1;
-  border-radius: 10px;
-  text-decoration: none;
-}
-
-.showtime-card:hover {
-  border-color: #2563eb;
-}
-
-.select {
-  color: #2563eb;
-  font-size: 14px;
-}
+.movie-heading { display: flex; overflow: hidden; gap: 1.5rem; align-items: center; }
+.poster { display: grid; place-items: center; flex: 0 0 210px; min-height: 220px; background: linear-gradient(145deg, #192b49, #504083); color: white; font-size: 4rem; }
+.movie-meta { padding: 1.2rem; }
+.movie-meta h1 { margin: .5rem 0; }
+.eyebrow { color: #7250b6; font-weight: 800; font-size: .75rem; letter-spacing: .14em; }
+.section-space { margin-top: 2.5rem; }
+.date-row { display: flex; gap: .65rem; flex-wrap: wrap; }
+.date-button { border: 1px solid #cbd2de; border-radius: 10px; background: white; padding: .8rem 1rem; }
+.date-button.active { border-color: #5539a4; background: #5539a4; color: white; }
+.showtime-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); gap: .95rem; }
+@media (max-width: 550px) { .movie-heading { flex-direction: column; align-items: stretch; gap: .4rem; } .poster { flex-basis: auto; min-height: 145px; } }
 </style>

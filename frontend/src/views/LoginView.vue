@@ -42,7 +42,7 @@ async function submitLogin() {
 </script>
 
 <template>
-  <main class="auth-page">
+  <main class="auth-page card">
 
     <h1>Login</h1>
 
@@ -94,9 +94,9 @@ async function submitLogin() {
 
 <style scoped>
 .auth-page {
-  max-width: 420px;
-  margin: 36px auto;
-  padding: 20px;
+  max-width: 440px;
+  margin: 3rem auto;
+  padding: 2rem;
 }
 
 form {
@@ -110,17 +110,22 @@ label {
 }
 
 input {
-  padding: 10px;
-  border: 1px solid #999;
+  padding: 12px;
+  border: 1px solid #c7d0df;
   border-radius: 6px;
 }
 
 button {
-  padding: 11px;
+  padding: 12px;
+  border: 0;
+  border-radius: 9px;
+  background: #5539a4;
+  color: white;
+  font-weight: 700;
   cursor: pointer;
 }
 
 .error {
-  color: #b00020;
+  color: #a51937;
 }
 </style>
