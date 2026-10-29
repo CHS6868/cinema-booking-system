@@ -850,7 +850,6 @@ app.get("/api/my-bookings", requireAuth, (req, res) => {
 
       LEFT JOIN booking_seats AS bs
         ON bs.booking_id = b.id
-        AND bs.status = 'CONFIRMED'
 
       LEFT JOIN seats AS se
         ON bs.seat_id = se.id
@@ -883,6 +882,12 @@ app.get("/api/my-bookings", requireAuth, (req, res) => {
   }
 });
 
+const bookingCancellationRouter = require("./routes/bookingCancellation");
+app.use("/api/bookings", bookingCancellationRouter);
+
+console.log("PHASE 6 CANCELLATION ROUTER REGISTERED");
+console.log("Running file:", __filename);
+console.log("Process ID:", process.pid);
 
 app.listen(PORT, () => {
   console.log("=== PHASE 5 MY BOOKINGS SERVER ===");
