@@ -889,9 +889,15 @@ console.log("PHASE 6 CANCELLATION ROUTER REGISTERED");
 console.log("Running file:", __filename);
 console.log("Process ID:", process.pid);
 
-app.listen(PORT, () => {
-  console.log("=== PHASE 5 MY BOOKINGS SERVER ===");
-  console.log("Running file:", __filename);
-  console.log("Process ID:", process.pid);
-  console.log(`Backend running at http://localhost:${PORT}`);
-});
+// Start the server only when running node server.js directly.
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log("=== CINEMA BOOKING BACKEND ===");
+    console.log("Running file:", __filename);
+    console.log("Process ID:", process.pid);
+    console.log(`Backend running at http://localhost:${PORT}`);
+  });
+}
+
+// Export the Express app for automated testing.
+module.exports = app;

@@ -1,6 +1,7 @@
 const express = require("express");
 const db = require("../database/db");
 const { requireAuth } = require("../auth/session");
+const { showtimeStartMs } = require("../utils/showtime");
 
 const router = express.Router();
 
@@ -37,11 +38,11 @@ router.patch("/:id/cancel", requireAuth, (req, res) => {
       throw cancellationError(409, "Booking is not confirmed");
     }
 
-    const startsAt = new Date(`${booking.date}T${booking.time}:00`);
-    if (Number.isNaN(startsAt.getTime())) {
+    const startsAt = showtimeStartMs(booking.date, booking.time);
+    if (Number.isNaN(startsAt)) {
       throw new Error("Invalid showtime date or time in database");
     }
-    if (startsAt.getTime() <= Date.now()) {
+    if (startsAt <= Date.now()) {
       throw cancellationError(400, "Cannot cancel a showtime that has started");
     }
 

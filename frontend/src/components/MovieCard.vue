@@ -6,7 +6,16 @@ defineProps({ movie: { type: Object, required: true } });
 
 <template>
   <article class="movie-card card">
-    <div class="poster" aria-hidden="true">🎞️</div>
+    <img
+      :src="`/posters/movie-${movie.id}.jpg`"
+      :alt="`${movie.title} movie poster`"
+      class="poster"
+      loading="lazy"
+      @error="(event) => {
+        event.target.onerror = null;
+        event.target.src = '/posters/placeholder.jpg';
+      }"
+    />
     <div class="movie-content">
       <p class="eyebrow">NOW SHOWING</p>
       <h3>{{ movie.title }}</h3>
@@ -21,7 +30,13 @@ defineProps({ movie: { type: Object, required: true } });
 
 <style scoped>
 .movie-card { overflow: hidden; padding: 0; display: flex; flex-direction: column; }
-.poster { min-height: 145px; background: linear-gradient(145deg, #192b49, #504083); color: white; display: grid; place-items: center; font-size: 4rem; }
+.poster {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  display: block;
+  background: #192b49;
+}
 .movie-content { display: flex; flex-direction: column; flex: 1; gap: .55rem; padding: 1.3rem; }
 .movie-content h3 { margin: 0; font-size: 1.25rem; line-height: 1.35; }
 .movie-content p { margin: 0; }

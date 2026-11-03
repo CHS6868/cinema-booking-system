@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test tests/phase6.test.js tests/phase8.unit.test.js tests/phase8.api.test.js",
+    "test:coverage": "node --test --experimental-test-coverage tests/phase6.test.js tests/phase8.unit.test.js tests/phase8.api.test.js"
   },
   "keywords": [],
   "author": "",
