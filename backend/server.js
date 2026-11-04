@@ -18,7 +18,8 @@ const { promisify } = require("node:util");
 const scryptAsync = promisify(scrypt);
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT || 3000);
+
 console.log("=== PHASE 5 BACKEND LOADED ===");
 
 function getLocalNow() {
@@ -888,6 +889,36 @@ app.use("/api/bookings", bookingCancellationRouter);
 console.log("PHASE 6 CANCELLATION ROUTER REGISTERED");
 console.log("Running file:", __filename);
 console.log("Process ID:", process.pid);
+
+
+const fs = require("node:fs");
+const path = require("node:path");
+
+if (
+  process.env.NODE_ENV === "production" ||
+  process.env.SERVE_FRONTEND === "1"
+) {
+  const distPath = path.resolve(__dirname, "../frontend/dist");
+  const indexPath = path.join(distPath, "index.html");
+
+  if (!fs.existsSync(indexPath)) {
+    throw new Error(
+      "Vue production build missing. Run npm run build in frontend."
+    );
+  }
+
+  // Serve compiled Vue files
+  app.use(express.static(distPath));
+
+  // Support refreshing Vue Router pages
+  app.get(/.*/, (req, res, next) => {
+    if (req.path.startsWith("/api/")) {
+      return next();
+    }
+
+    return res.sendFile(indexPath);
+  });
+}
 
 // Start the server only when running node server.js directly.
 if (require.main === module) {
